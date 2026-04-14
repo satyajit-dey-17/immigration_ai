@@ -1,0 +1,157 @@
+services:
+
+  # ── Vector Database ──────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+  # ── Metadata / Hash Store ────────────────────────────────────────
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: immigrationiq
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: localpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+  # ── Scraper + Ingestion Pipeline ─────────────────────────────────
+  scraper:
+    build: ./scraper
+    depends_on:
+      - qdrant
+      - postgres
+    env_file:
+      - .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      DATABASE_URL: postgresql://admin:localpassword@postgres/immigrationiq
+    volumes:
+      - ./raw_docs:/app/raw_docs
+    ports:
+      - "8001:8001"
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+  # ── FastAPI Query Backend ────────────────────────────────────────
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+    depends_on:
+      - qdrant
+      - postgres
+    env_file:
+      - .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    networks:
+      - immigrationiq_net
+
+  # ── Streamlit Frontend ───────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8000
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+  # ── Prometheus ───────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+  # ── Grafana ──────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+  # ── Log Aggregation ──────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - immigrationiq_net
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - immigrationiq_net
+    restart: unless-stopped
+
+networks:
+  immigrationiq_net:
+    driver: bridge
+
+volumes:
+  qdrant_storage:
+  pg_data:
+  grafana_data:

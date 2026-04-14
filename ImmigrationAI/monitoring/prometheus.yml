@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "immigrationiq_pipeline"
+    static_configs:
+      - targets: ["scraper:8001"]
+    metrics_path: /metrics
+
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
