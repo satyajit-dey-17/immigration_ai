@@ -166,7 +166,7 @@ immigrationiq/
 
 ## 📈 Current Stats
 
-- **49,000+** document chunks indexed
+- **100,000+** document chunks indexed
 - **8** federal data sources
 - **10+** containerized microservices
 - **Real-time** observability across all pipeline stages
