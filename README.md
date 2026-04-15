@@ -21,7 +21,7 @@ A production-grade Retrieval-Augmented Generation (RAG) platform that scrapes, p
 │  Playwright)  │                 │                           │
 ├───────────────┼─────────────────┼───────────────────────────┤
 │         OpenAI Embeddings       │    Qdrant Vector DB       │
-│         (text-embedding-3-small)│    (49,000+ chunks)       │
+│         (text-embedding-3-small)│    (100,000+ chunks)       │
 ├─────────────────────────────────┴───────────────────────────┤
 │              Observability Stack                            │
 │     Prometheus · Grafana · Loki · Promtail · cAdvisor       │
